@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PseudoColumns</title>
+
+    <script type="text/javascript" src="/apps/2.1/sdk-debug.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+    id: 'columnsApp',
+
+    config: {
+        defaultSettings: {
+            colStrings: Ext.JSON.encode([{
+                text: 'Title One'
+            }, {
+                text: 'Title Two'
+            }, {
+                text: 'Title Three'
+            }])
+        }
+    },
+
+    getSettingsFields: function() {
+        return Settings.getFields(this.getContext());
+    },
+
+    launch: function() {
+
+        var app = this;
+        this.add( {
+            xtype: 'rallyportfolioitemtypecombobox',
+            id: 'piType',
+            listeners: {
+                ready: function() { app._onLoad(app, this.rawValue); },
+                change: function() { app._onLoad(app, this.rawValue); },
+                scope: app
+            }
+        });
+    },
+
+    _addGrid: function() {
+        var grid = this.down('rallygrid');
+        if ( grid ) {
+            grid.destroy();
+        }
+
+        this.add( this._getGridConfig(this.getSetting('allowedTextFields')));
+    },
+
+
+    _getGridConfig: function( field ) {
+        var pstring = '';
+        var gridConfig = {
+                xtype: 'rallygrid',
+                store: this.store,
+                enableBulkEdit: true,
+                enableColumnResize: true,
+                bulkEditConfig: {
+                    showEdit: false,
+                    showTag: false,
+                    showParent: false,
+                    showRemove: false,
+                    showMilestones: false
+                },
+                context: this.getContext(),
+
+                columnCfgs:
+
+                        [ 'FormattedID' ,
+                         { text: 'Name', dataIndex: 'Name' },
+                         { text: 'Owner', dataIndex: 'Owner', flex: 1 }]
+                        .concat(
+                            _.map(
+                                Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
+                                    var retval = {
+                                        text: colstring.text,
+                                        pstring: pstring,
+                                        dataIndex: field,
+                                        renderer: function (value, metaData, record, rowIdx, colIdx, store) {
+                                                retval = this._findSubText(value, colIdx);
+                                            return (retval);
+                                        },
+                                        columnHeaderConfig: {
+                                            headerTpl: colstring || 'Invalid App Setting'
+                                        }
+                                    };
+                                    pstring = colstring;
+                                    return retval;
+                                }
+                        )
+                    ),
+
+                    _findSubText: function (value, colIdx) {
+
+                        var startString = this.columns[colIdx - 1].text;  //Zero based not one based like colIdx
+                        var endString = (colIdx < this.columns.length)?this.columns[colIdx].text: null;    //If off the end we will be null here
+
+                        return this._parseWTF(value, startString, endString);
+                    },
+
+                    _parseWTF: function ( value, strB, strE ) {
+
+                        //How the fork do you parse this field!!!!
+
+                        //So, I think it goes like this....
+                        // 1. Find the first string you are looking for
+                        // 2. Check whether it is part of a div already (<div> will be just before)
+                        // 3. Find the next string. If it exists, backtrack to before the prior <div>
+                        //    If not, then just use the rest of the text
+                        // 4. Rinse and repeat
+
+                        var startPoint = value.indexOf(strB);
+
+                        if (startPoint < 0) {
+                            return '';
+                        }
+
+                        var gotDiv = false; //Are we in a <div>
+                        var midDiv = false; //Have we got a <div> between string and value
+
+                        if (startPoint > 4) //Might be a <div> in front
+                        {
+                            if (value.slice( startPoint - 5, startPoint) === '<div>') {
+                                gotDiv = true;
+                                startPoint -= 5;    //Move back to before the <div>
+                            }
+
+                            if (value.slice(startPoint + strB.length + 5, startPoint + strB.length + 11) === '</div>') {
+                                midDiv = true;
+                            }
+                        }
+
+                        // Look for end
+                        var endPoint = value.indexOf(strE);
+                        if ( endPoint > 0 ) {
+                            if (value.slice( endPoint - 5, endPoint) === '<div>') {
+                                endPoint -= 5;
+                            }
+                        }
+                        else {
+                            endPoint = value.length;
+                        }
+
+                        var finalString = value.slice( startPoint, endPoint);
+
+                        //Remove the separator div from end
+                        var uselessDiv = '<div><br /></div>';
+                        while (finalString.slice( finalString.length - uselessDiv.length, finalString.length) == uselessDiv) {
+                            finalString = finalString.slice(0, finalString.length - uselessDiv.length);
+                        }
+
+                        if (gotDiv) {
+                            if (midDiv) {
+                                finalString = finalString.slice( strB.length + 11, finalString.length); //Remove <div></div>
+                            }
+                            else {
+                                finalString = finalString.slice( strB.length + 5, finalString.length - 6);
+                            }
+
+                        }
+                        else finalString = finalString.slice( strB.length, finalString.length);
+
+                        //Remove the separator div from start
+                        while (finalString.slice( 0, uselessDiv.length) == uselessDiv) {
+                            finalString = finalString.slice(uselessDiv.length, finalString.length);
+                        }
+
+                        return finalString;
+                    }
+            };
+        return (gridConfig);
+    },
+
+    _onLoad: function(app, value) {
+        var modelType = 'portfolioitem/' + this.down('rallyportfolioitemtypecombobox').rawValue;
+
+        var filters = [];
+        var timeboxScope = app.getContext().getTimeboxScope();
+        if(timeboxScope) {
+            filters.push(timeboxScope.getQueryFilter());
+        }
+
+        //Now get the settings query box and apply those settings
+        var queryString = app.getSetting('query');
+        if (queryString) {
+            var filterObj = Rally.data.wsapi.Filter.fromQueryString(queryString);
+            filterObj.itemId = filterObj.toString();
+            filters.push(filterObj);
+        }
+
+        var itemStore = Ext.create('Rally.data.wsapi.artifact.Store', {
+            models: [ modelType ],
+            filters: filters,
+            autoLoad: true,
+            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes' ],
+            listeners: {
+                load: function (store, data, success) {
+                    this.store = store;
+                    this._addGrid();
+                },
+                scope: app
+            }
+        });
+    }
+});
+
+
+Ext.define('Rally.ui.bulk.RecordMenuFix', {
+    override: 'Rally.ui.menu.bulk.RecordMenu',
+    _getMenuItems: function() {
+        var records = this.getRecords();
+        var items = this.callParent(arguments);
+        items.push({
+            xtype: 'resetBulkField',
+            id: 'resetBulkField'
+        });
+        _.each(items, function(item) {
+            Ext.apply(item, {
+                records: records,
+                store: this.store,
+                onBeforeAction: this.onBeforeAction,
+                onActionComplete: this.onActionComplete,
+                context: this.getContext()
+            });
+        }, this);
+
+        return items;
+    }
+});
+
+Ext.define('resetBulkField', {
+    extend: Rally.ui.menu.bulk.MenuItem,
+    alias: 'widget.resetBulkField',
+
+    config: {
+        text: 'Reset Field',
+        handler: function( arg1, arg2, arg3) {
+            var fields = _.map( Ext.JSON.decode(Ext.getCmp('columnsApp').getSetting('colStrings')), function(value) {
+                                    return value.text;
+                                });
+            var theString = '';
+            _.each(fields, function( field) {
+                theString += '<div>' + field + '</div><div><br /></div>';
+            });
+            _.each( this.records, function( record) {
+                record.set(Ext.getCmp('columnsApp').getSetting('allowedTextFields'), theString);
+                record.save();
+            });
+
+        }
+    }
+});
+
+                Ext.define('StringsField', {
+    extend: 'Ext.form.field.Base',
+    alias: 'widget.stringsfield',
+    requires: [
+        'Rally.ui.Button'
+    ],
+
+    fieldSubTpl: '<div id="{id}"></div>',
+
+    cls: 'colStrings',
+
+    config: {
+        /**
+         * @cfg {Object}
+         *
+         * The size settings value for this field
+         */
+        value: undefined
+    },
+
+    onDestroy: function() {
+        if (this._stringsContainer) {
+            this._stringsContainer.destroy();
+            delete this._stringsContainer;
+        }
+        this.callParent(arguments);
+    },
+
+    onRender: function() {
+        this.callParent(arguments);
+
+        this._stringsContainer = Ext.create('Ext.Container', {
+            renderTo: this.inputEl,
+            cls: 'strings-container',
+            items: this._buildRows()
+        });
+    },
+
+    /**
+     * When a form asks for the data this field represents,
+     * give it the name of this field and the ref of the selected project (or an empty string).
+     * Used when persisting the value of this field.
+     * @return {Object}
+     */
+    getSubmitData: function() {
+        var data = {};
+        data[this.name] = Ext.JSON.encode(_.map(Ext.ComponentQuery.query('container', this._stringsContainer), function(row) {
+            var labelTextBox = Ext.ComponentQuery.query('rallytextfield', row)[0];
+
+            return {
+                text: labelTextBox.getValue()
+            };
+        }));
+
+        return data;
+    },
+
+    _buildRows: function() {
+        return [{
+            xtype: 'component',
+            margin: '0 0 5px 0',
+            html: '<span class="label-header">Title</span>'
+        }].concat(_.map(Ext.JSON.decode(this._value), function(value) {
+            return this._buildRow(value);
+        }, this));
+    },
+
+    _buildRow: function(value) {
+        return {
+            xtype: 'container',
+            layout: 'hbox',
+            items: [{
+                xtype: 'rallybutton',
+                border: false,
+                frame: false,
+                cls: 'row-btn plus',
+                disabled: false,
+                itemId: 'plusButton',
+                iconCls: 'icon-plus',
+                listeners: {
+                    click: this._addRow,
+                    scope: this
+                }
+            }, {
+                xtype: 'rallybutton',
+                border: false,
+                cls: 'row-btn minus',
+                frame: false,
+                iconCls: 'icon-minus',
+                itemId: 'minusButton',
+                listeners: {
+                    click: this._removeRow,
+                    scope: this
+                }
+            }, {
+                xtype: 'rallytextfield',
+                width: 500,
+                value: value && value.text
+            }]
+        };
+    },
+
+    _addRow: function(button) {
+        var container = button.up();
+        var stringsContainer = container.up();
+        var index = stringsContainer.items.indexOf(container);
+        stringsContainer.insert(index + 1, this._buildRow());
+        var appSettings = this.up('rallyappsettings');
+        appSettings.fireEvent('appsettingsready', appSettings);
+    },
+
+    _removeRow: function(button) {
+        button.up().destroy();
+        var appSettings = this.up('rallyappsettings');
+        appSettings.fireEvent('appsettingsready', appSettings);
+    },
+
+    setValue: function(value) {
+        this.callParent(arguments);
+        this._value = value;
+    }
+});
+                Ext.define('Settings', {
+    singleton: true,
+    requires: [
+        'Rally.ui.combobox.FieldComboBox',
+        'Rally.ui.combobox.ComboBox',
+        'Rally.ui.TextField',
+        'Rally.ui.NumberField',
+        'Rally.data.wsapi.Filter',
+        'StringsField'
+    ],
+
+
+    getFields: function(context) {
+
+    var blackListedFields = [ 'DisplayColor', 'Name', 'DragAndDropRank', 'InvestmentCategory' ];
+
+        //This can be called before we really need it
+        if ( ! Ext.getCmp('piType'))
+            return [];
+
+        return [
+        {
+            name: 'allowedTextFields',
+            xtype: 'rallyfieldcombobox',
+            model: 'portfolioitem/' + Ext.getCmp('piType').rawValue,
+            fieldLabel: 'Text Field',
+            readyEvent: 'ready',
+            _isNotHidden: function (field) {
+                var retval = (field.type.type == 'string') &&
+                    !(field.hidden || _.contains( blackListedFields, field.name) || field.readOnly);
+                return (retval );
+            }
+        },
+        {
+            name: 'colStrings',
+            xtype: 'stringsfield',
+            fieldLabel: 'Columns'
+        }, {
+            type: 'query'
+        }];
+    }
+});
+
+
+            Rally.launchApp('CustomApp', {
+                name:"PseudoColumns",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+
+    <style type="text/css">
+        .strings .x-field-label-cell {
+  vertical-align: top;
+}
+.strings .label-header {
+  margin-left: 60px;
+  font-family: NotoSansBold;
+  font-size: 12px;
+}
+.strings .strings-container {
+  margin-top: 5px;
+}
+.row-btn {
+  background-color: transparent;
+  font-size: 14px;
+  height: 26px;
+  width: 28px;
+  float: left;
+  padding: 2px 0 0 0;
+}
+.row-btn .btn-button {
+  border: 0 !important;
+}
+.row-btn.minus {
+  color: #666666;
+}
+.row-btn.plus {
+  color: #00A9E0;
+}
+.row-btn.plus:hover {
+  color: #29beff;
+}
+.row-btn.plus.item-disabled,
+.row-btn.plus.item-disabled:hover {
+  cursor: default;
+}
+.row-btn.plus.item-disabled span,
+.row-btn.plus.item-disabled:hover span {
+  color: #666666;
+}
+
+    </style>
+</head>
+<body>
+</body>
+</html>

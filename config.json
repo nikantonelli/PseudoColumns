@@ -1,0 +1,14 @@
+{
+   "name": "PseudoColumns",
+   "className": "CustomApp",
+   "server": "https://rally1.rallydev.com",
+   "sdk": "2.1",
+   "javascript": [
+      "App.js",
+      "SettingsFields.js",
+      "Settings.js"
+   ],
+   "css": [
+      "app.css"
+   ]
+}
