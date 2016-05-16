@@ -63,7 +63,10 @@ Ext.define('CustomApp', {
 
                         [ 'FormattedID' ,
                          { text: 'Name', dataIndex: 'Name' },
-                         { text: 'Owner', dataIndex: 'Owner', flex: 1 }]
+                          'Description',
+                         { text: 'Owner', dataIndex: 'Owner', flex: 1 },
+                          'PercentDoneByStoryPlanEstimate',
+                          'LastUpdateDate' ]
                         .concat(
                             _.map(
                                 Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
