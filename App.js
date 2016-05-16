@@ -190,7 +190,7 @@ Ext.define('CustomApp', {
             models: [ modelType ],
             filters: filters,
             autoLoad: true,
-            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes' ],
+            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryPlanEstimate', 'LastUpdateDate', 'Description' ],
             listeners: {
                 load: function (store, data, success) {
                     this.store = store;
