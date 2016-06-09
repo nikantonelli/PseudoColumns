@@ -3,7 +3,7 @@
 <head>
     <title>PseudoColumns</title>
 
-    <script type="text/javascript" src="/apps/2.1/sdk-debug.js"></script>
+    <script type="text/javascript" src="/apps/2.0/sdk-debug.js"></script>
 
     <script type="text/javascript">
         Rally.onReady(function () {
@@ -11,6 +11,10 @@
     extend: 'Rally.app.App',
     componentCls: 'app',
     id: 'columnsApp',
+
+    items: [
+
+    ],
 
     config: {
         defaultSettings: {
@@ -48,12 +52,16 @@
             grid.destroy();
         }
 
-        this.add( this._getGridConfig(this.getSetting('allowedTextFields')));
+        this.grid = Ext.create( 'Rally.ui.grid.Grid',
+            this._getGridConfig(
+                this.getSetting('allowedTextFields')
+            )
+        );
+        this.insert( 1, this.grid );
     },
 
 
     _getGridConfig: function( field ) {
-        var pstring = '';
         var gridConfig = {
                 xtype: 'rallygrid',
                 store: this.store,
@@ -68,112 +76,129 @@
                 },
                 context: this.getContext(),
 
-                columnCfgs:
+                plugins: [
+                        Ext.create('Ext.grid.plugin.CellEditing', {
+                            clicksToEdit: 1
+                        })
+                ],
 
-                        [ 'FormattedID' ,
+                columnCfgs:  [
+
+                         'FormattedID' ,
                          { text: 'Name', dataIndex: 'Name' },
                           'Description',
-                         { text: 'Owner', dataIndex: 'Owner', flex: 1 },
+                         { text: 'Owner', dataIndex: 'Owner'},
                           'PercentDoneByStoryPlanEstimate',
-                          'LastUpdateDate' ]
-                        .concat(
-                            _.map(
-                                Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
-                                    var retval = {
-                                        text: colstring.text,
-                                        pstring: pstring,
-                                        dataIndex: field,
-                                        renderer: function (value, metaData, record, rowIdx, colIdx, store) {
-                                                retval = this._findSubText(value, colIdx);
-                                            return (retval);
-                                        },
-                                        columnHeaderConfig: {
-                                            headerTpl: colstring || 'Invalid App Setting'
-                                        }
-                                    };
-                                    pstring = colstring;
-                                    return retval;
-                                }
-                        )
-                    ),
+                          'LastUpdateDate'
+                    ]
+                    .concat(
+                        _.map(
+                            Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
+                                var retval = {
+                                    text: colstring.text,
+                                    dataIndex: field,
+                                    editor: {
+                                        xtype: 'apprichtexteditor'
+//                                        startEdit: function(arg1, arg2, arg3, arg4) { debugger; }
+//                                            listeners: {
+//                                                focus: function(arg1, arg2, arg3, arg4, arg5) {
+//                                                    this.show();
+//                                                },
+//                                                blur: function(arg1, arg2, arg3, arg4, arg5) {
+//                                                    this.hide();
+//                                                }
+//                                            }
+                                    },
+                                    renderer: function (value, metaData, record, rowIdx, colIdx, store) {
+                                            retval = this._findSubText(value, colIdx);
+                                        return (retval);
+                                    },
+                                    columnHeaderConfig: {
+                                        headerTpl: colstring || 'Invalid App Setting'
+                                    }
+                                };
+                                return retval;
+                            }
+                    )
+                ),
 
-                    _findSubText: function (value, colIdx) {
+                _findSubText: function (value, colIdx) {
 
-                        var startString = this.columns[colIdx - 1].text;  //Zero based not one based like colIdx
-                        var endString = (colIdx < this.columns.length)?this.columns[colIdx].text: null;    //If off the end we will be null here
+                    var startString = this.columns[colIdx - 1].text;  //Zero based not one based like colIdx
+                    var endString = (colIdx < this.columns.length)?this.columns[colIdx].text: null;    //If off the end we will be null here
 
-                        return this._parseWTF(value, startString, endString);
-                    },
+                    return this._parseWTF(value, startString, endString);
+                },
 
-                    _parseWTF: function ( value, strB, strE ) {
+                _parseWTF: function ( value, strB, strE ) {
 
-                        //How the fork do you parse this field!!!!
+                    //How the fork do you parse this field!!!!
 
-                        //So, I think it goes like this....
-                        // 1. Find the first string you are looking for
-                        // 2. Check whether it is part of a div already (<div> will be just before)
-                        // 3. Find the next string. If it exists, backtrack to before the prior <div>
-                        //    If not, then just use the rest of the text
-                        // 4. Rinse and repeat
+                    //So, I think it goes like this....
+                    // 1. Find the first string you are looking for
+                    // 2. Check whether it is part of a div already (<div> will be just before)
+                    // 3. Find the next string. If it exists, backtrack to before the prior <div>
+                    //    If not, then just use the rest of the text
+                    // 4. Rinse and repeat
 
-                        var startPoint = value.indexOf(strB);
+                    var startPoint = value.indexOf(strB);
 
-                        if (startPoint < 0) {
-                            return '';
+                    if (startPoint < 0) {
+                        return '';
+                    }
+
+                    var gotDiv = false; //Are we in a <div>
+                    var midDiv = false; //Have we got a <div> between string and value
+
+                    if (startPoint > 4) //Might be a <div> in front
+                    {
+                        if (value.slice( startPoint - 5, startPoint) === '<div>') {
+                            gotDiv = true;
+                            startPoint -= 5;    //Move back to before the <div>
                         }
 
-                        var gotDiv = false; //Are we in a <div>
-                        var midDiv = false; //Have we got a <div> between string and value
-
-                        if (startPoint > 4) //Might be a <div> in front
-                        {
-                            if (value.slice( startPoint - 5, startPoint) === '<div>') {
-                                gotDiv = true;
-                                startPoint -= 5;    //Move back to before the <div>
-                            }
-
-                            if (value.slice(startPoint + strB.length + 5, startPoint + strB.length + 11) === '</div>') {
-                                midDiv = true;
-                            }
+                        if (value.slice(startPoint + strB.length + 5, startPoint + strB.length + 11) === '</div>') {
+                            midDiv = true;
                         }
+                    }
 
-                        // Look for end
-                        var endPoint = value.indexOf(strE);
-                        if ( endPoint > 0 ) {
-                            if (value.slice( endPoint - 5, endPoint) === '<div>') {
-                                endPoint -= 5;
-                            }
+                    // Look for end
+                    var endPoint = value.indexOf(strE);
+                    if ( endPoint > 0 ) {
+                        if (value.slice( endPoint - 5, endPoint) === '<div>') {
+                            endPoint -= 5;
+                        }
+                    }
+                    else {
+                        endPoint = value.length;
+                    }
+
+                    var finalString = value.slice( startPoint, endPoint);
+
+                    //Remove the separator div from end
+                    var uselessDiv = '<div><br /></div>';
+                    while (finalString.slice( finalString.length - uselessDiv.length, finalString.length) == uselessDiv) {
+                        finalString = finalString.slice(0, finalString.length - uselessDiv.length);
+                    }
+
+                    if (gotDiv) {
+                        if (midDiv) {
+                            finalString = finalString.slice( strB.length + 11, finalString.length); //Remove <div></div>
                         }
                         else {
-                            endPoint = value.length;
+                            finalString = finalString.slice( strB.length + 5, finalString.length - 6);
                         }
 
-                        var finalString = value.slice( startPoint, endPoint);
-
-                        //Remove the separator div from end
-                        var uselessDiv = '<div><br /></div>';
-                        while (finalString.slice( finalString.length - uselessDiv.length, finalString.length) == uselessDiv) {
-                            finalString = finalString.slice(0, finalString.length - uselessDiv.length);
-                        }
-
-                        if (gotDiv) {
-                            if (midDiv) {
-                                finalString = finalString.slice( strB.length + 11, finalString.length); //Remove <div></div>
-                            }
-                            else {
-                                finalString = finalString.slice( strB.length + 5, finalString.length - 6);
-                            }
-
-                        }
-                        else finalString = finalString.slice( strB.length, finalString.length);
-
-                        //Remove the separator div from start
-                        while (finalString.slice( 0, uselessDiv.length) == uselessDiv) {
-                            finalString = finalString.slice(uselessDiv.length, finalString.length);
-                        }
-
-                        return finalString;
                     }
+                    else finalString = finalString.slice( strB.length, finalString.length);
+
+                    //Remove the separator div from start
+                    while (finalString.slice( 0, uselessDiv.length) == uselessDiv) {
+                        finalString = finalString.slice(uselessDiv.length, finalString.length);
+                    }
+
+                    return finalString;
+                }
             };
         return (gridConfig);
     },
@@ -207,6 +232,40 @@
                 },
                 scope: app
             }
+        });
+
+        app.exporter = Ext.create('GridExporter');
+
+        var rallybutton = this.down('rallybutton');
+        if ( rallybutton ) {
+            rallybutton.destroy();
+        }
+
+        app.add ({
+            id : 'exportButton',
+            margin: '5 5 5 5',
+            xtype: 'rallybutton',
+            text : 'Export',
+            handler : function() {
+                var saveDialog = Ext.create('Rally.ui.dialog.Dialog', {
+                    autoShow: true,
+                    draggable: true,
+                    width: 300,
+                    title: 'Export all records',
+                    items: [
+                        {
+                            xtype: 'rallybutton',
+                            text: 'CSV',
+                            handler: function () {
+                                app.exporter.exportCSV(app.grid);
+                                saveDialog.destroy();
+                            }
+                        }
+                    ]
+
+                 });
+            }
+
         });
     }
 });
@@ -256,6 +315,90 @@ Ext.define('resetBulkField', {
 
         }
     }
+});
+
+Ext.define ('AppRichTextEditor', {
+//    extend: Rally.ui.richtext.RichTextEditor,
+        extend:  Ext.Component ,
+        alias: 'widget.apprichtexteditor',
+
+    config: {
+        hideMode: 'offsets',
+        listeners: {
+//            blur: function(arg1, arg2, arg3, arg4, arg5) {
+//                debugger;
+//                this.hide();
+//                return true;
+//            },
+//            beforedestroy: function(arg1, arg2, arg3, arg4) {
+//                debugger;
+//                return true;
+//            },
+//            beforestartedit: function(arg1, arg2, arg3, arg4) {
+//                debugger;
+//                return false;
+//            }
+        }
+    },
+
+    constructor: function(config, arg2, arg3, arg4) {
+        this.mergeConfig(config);
+        this.callParent([this.config]);
+//        debugger;
+    },
+
+    initComponent: function(arg1, arg2, arg3, arg4) {
+        this.callParent(arguments);
+        this.addEvents( 'beforestartedit');
+//        this.getRawValue = this._getRawValue;
+//        this.setSize = this._setSize;
+//        if (!this.getToolbarAlwaysEnabled()) {
+//            this.on('focus', this._enableToolbar, this);
+//            this.on('blur', this._disableToolbar, this);
+//        }
+//
+//        this.mixins.field.initField.call(this);
+//
+//        debugger;
+    },
+//
+//    _getRawValue: function () {
+//        return this.initialValue;
+//    },
+//
+//    _setSize: function( width, height) {
+//        return true;
+//    },
+
+
+    startEdit: function(el, value, context) {
+        var me = this;
+        var field = me.field;
+
+//debugger;
+
+        me.completeEdit();
+        me.boundEl = Ext.get(el);
+        value = Ext.isDefined(value) ? value : Ext.String.trim(me.boundEl.dom.innerText || me.boundEl.dom.innerHTML);
+
+        if (!me.rendered) {
+            if (me.ownerCt) {
+                me.parentEl = me.ownerCt.el;
+                me.parentEl.position();
+            }
+            me.render(me.parentEl || document.doby);
+        }
+
+        if (me.fireEvent('beforestartedit', me, me.boundEl, value) !== false) {
+            me. startValue = value;
+            me.show();
+            me.editing = true;
+        }
+    }
+//
+//    calculate: function (ownerContext) {
+//    }
+
 });
 
                 Ext.define('StringsField', {
@@ -423,6 +566,157 @@ Ext.define('resetBulkField', {
     }
 });
 
+                Ext.define("GridExporter", {
+    //dateFormat : 'Y-m-d g:i',
+    dateFormat : 'Y-m-d',
+
+    inheritableStatics: {
+        XmlFileHeader: '<?xml version="1.0"?>',
+        XmlFileExtension: '.xml.txt'
+    },
+
+    _downloadFiles: function( files ) {
+        if ( files.length )
+        {
+            var data = files.pop();
+            var format = files.pop();
+            var file = files.pop();
+
+            var href = "<a href='" + format + "," + encodeURIComponent(data) + "' download='" + file + "'></a>";
+
+            var ml = Ext.DomHelper.insertAfter(window.document.getElementById('exportButton'), href);
+            ml.click();
+//            ml.remove(); //Leaves them behind without this, but there is a timing issue: from click to remove.
+            this._downloadFiles(files);
+        }
+    },
+
+    exportCSV: function(grid) {
+        var data = this._getCSV(grid, false);
+        // fix: ' character was causing termination of csv file
+        data = data.replace(/\'/g, "");
+        this._downloadFiles(
+            [
+                'export.csv', 'data:text/csv;charset=utf8', data
+            ]
+        );
+
+    },
+
+    _escapeForCSV: function(string) {
+        string = "" + string;
+        if (string.match(/,/)) {
+            if (!string.match(/"/)) {
+                string = '"' + string + '"';
+            } else {
+                string = string.replace(/,/g, ''); // comma's and quotes-- sorry, just lose the commas
+            }
+        }
+        return string;
+    },
+
+    _getFieldText: function(fieldData,record,col,index) {
+        var text;
+
+        if (fieldData === null || fieldData === undefined) {
+            text = '';
+
+        } else if (fieldData._refObjectName && !fieldData.getMonth) {
+            text = fieldData._refObjectName;
+
+        } else if (fieldData instanceof Date) {
+            text = Ext.Date.format(fieldData, this.dateFormat);
+
+        } else if (typeof fieldData === 'string' ){ //Remove any html formatting coding.
+            text = fieldData.replace(/<.*>/g," ");
+            text = text.replace(/&nbsp;/g," ");
+        } /*else if (!fieldData.match) { // not a string or object we recognize...bank it out
+            text = '';
+        } */ else {
+            text = fieldData;
+        }
+
+        return text;
+    },
+
+    _getFieldTextAndEscape: function(fieldData,record,col,index) {
+        var string  = this._getFieldText(fieldData,record,col,index);
+
+        return this._escapeForCSV(string);
+    },
+
+    // have to add the colIdx to the count of locked columns
+    fixedColumnCount : function(columns) {
+        var cols = _.filter(columns,function(c) { 
+            return c!==undefined && c!==null && c.locked === true;
+        });
+        return cols.length;
+    },
+
+    _stripDivs: function(text) {
+
+        var retval = text.replace('<div>','');
+        retval = retval.replace('</div>','');
+        retval = retval.replace('<br />','');
+        return retval;
+    },
+
+    _getCSV: function (grid) {
+        var cols    = grid.columns;
+        var store   = grid.store;
+        var hdrData    = '';
+        var rowData = '';
+        var valid = true;
+
+        var that = this;
+        Ext.Array.each(cols, function(col, index) {
+            if (col.hidden !== true) {
+
+                // fix the issue with the "SYLK" warning in excel by prepending "Item" to the ID column
+//                var colLabel = (index === 0 ? "Item " : "") + col.dataIndex;
+
+                var colLabel = col && col.dataIndex;
+                if ( colLabel && colLabel.replace(/<br\/?>/,'') ){
+                    if ( col.editor && col.editor.xtype === 'apprichtexteditor') {
+                        hdrData += that._getFieldTextAndEscape(col.text) + ',';
+                    }
+                    else {
+                        hdrData += that._getFieldTextAndEscape(colLabel) + ',';
+                    }
+                }
+            }
+        });
+        hdrData += "\n";
+
+        _.each( store.data.items, function(record,i) {
+            Ext.Array.each(cols, function(col, index) {
+            
+                if (col.hidden !== true) {
+                    var fieldName   = col && col.dataIndex;
+                    if (fieldName ) {
+                        var text = record.get(fieldName);
+
+                        if ( col.editor && col.editor.xtype === 'apprichtexteditor') {
+                            var rg = this.up('rallygrid');
+                            var rt = rg._findSubText(text, index + 1);  //Adjust for function
+                            rt = that._stripDivs(rt);
+                            rowData += that._getFieldTextAndEscape(rt) + ',';
+                        }
+                        else {
+                            rowData += that._getFieldTextAndEscape(text,record,col,index) + ',';
+                        }
+                    }
+                }
+            });
+            rowData += "\n";
+        });
+
+        if (rowData.length > 0)
+            return hdrData + rowData;
+        else
+            return null;
+    }
+});
 
             Rally.launchApp('CustomApp', {
                 name:"PseudoColumns",
