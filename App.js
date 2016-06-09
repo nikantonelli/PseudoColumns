@@ -3,6 +3,10 @@ Ext.define('CustomApp', {
     componentCls: 'app',
     id: 'columnsApp',
 
+    items: [
+
+    ],
+
     config: {
         defaultSettings: {
             colStrings: Ext.JSON.encode([{
@@ -39,12 +43,16 @@ Ext.define('CustomApp', {
             grid.destroy();
         }
 
-        this.add( this._getGridConfig(this.getSetting('allowedTextFields')));
+        this.grid = Ext.create( 'Rally.ui.grid.Grid',
+            this._getGridConfig(
+                this.getSetting('allowedTextFields')
+            )
+        );
+        this.insert( 1, this.grid );
     },
 
 
     _getGridConfig: function( field ) {
-        var pstring = '';
         var gridConfig = {
                 xtype: 'rallygrid',
                 store: this.store,
@@ -59,109 +67,129 @@ Ext.define('CustomApp', {
                 },
                 context: this.getContext(),
 
-                columnCfgs:
+                plugins: [
+                        Ext.create('Ext.grid.plugin.CellEditing', {
+                            clicksToEdit: 1
+                        })
+                ],
 
-                        [ 'FormattedID' ,
+                columnCfgs:  [
+
+                         'FormattedID' ,
                          { text: 'Name', dataIndex: 'Name' },
-                         { text: 'Owner', dataIndex: 'Owner', flex: 1 }]
-                        .concat(
-                            _.map(
-                                Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
-                                    var retval = {
-                                        text: colstring.text,
-                                        pstring: pstring,
-                                        dataIndex: field,
-                                        renderer: function (value, metaData, record, rowIdx, colIdx, store) {
-                                                retval = this._findSubText(value, colIdx);
-                                            return (retval);
-                                        },
-                                        columnHeaderConfig: {
-                                            headerTpl: colstring || 'Invalid App Setting'
-                                        }
-                                    };
-                                    pstring = colstring;
-                                    return retval;
-                                }
-                        )
-                    ),
+                          'Description',
+                         { text: 'Owner', dataIndex: 'Owner'},
+                          'PercentDoneByStoryPlanEstimate',
+                          'LastUpdateDate'
+                    ]
+                    .concat(
+                        _.map(
+                            Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
+                                var retval = {
+                                    text: colstring.text,
+                                    dataIndex: field,
+                                    editor: {
+                                        xtype: 'apprichtexteditor'
+//                                        startEdit: function(arg1, arg2, arg3, arg4) { debugger; }
+//                                            listeners: {
+//                                                focus: function(arg1, arg2, arg3, arg4, arg5) {
+//                                                    this.show();
+//                                                },
+//                                                blur: function(arg1, arg2, arg3, arg4, arg5) {
+//                                                    this.hide();
+//                                                }
+//                                            }
+                                    },
+                                    renderer: function (value, metaData, record, rowIdx, colIdx, store) {
+                                            retval = this._findSubText(value, colIdx);
+                                        return (retval);
+                                    },
+                                    columnHeaderConfig: {
+                                        headerTpl: colstring || 'Invalid App Setting'
+                                    }
+                                };
+                                return retval;
+                            }
+                    )
+                ),
 
-                    _findSubText: function (value, colIdx) {
+                _findSubText: function (value, colIdx) {
 
-                        var startString = this.columns[colIdx - 1].text;  //Zero based not one based like colIdx
-                        var endString = (colIdx < this.columns.length)?this.columns[colIdx].text: null;    //If off the end we will be null here
+                    var startString = this.columns[colIdx - 1].text;  //Zero based not one based like colIdx
+                    var endString = (colIdx < this.columns.length)?this.columns[colIdx].text: null;    //If off the end we will be null here
 
-                        return this._parseWTF(value, startString, endString);
-                    },
+                    return this._parseWTF(value, startString, endString);
+                },
 
-                    _parseWTF: function ( value, strB, strE ) {
+                _parseWTF: function ( value, strB, strE ) {
 
-                        //How the fork do you parse this field!!!!
+                    //How the fork do you parse this field!!!!
 
-                        //So, I think it goes like this....
-                        // 1. Find the first string you are looking for
-                        // 2. Check whether it is part of a div already (<div> will be just before)
-                        // 3. Find the next string. If it exists, backtrack to before the prior <div>
-                        //    If not, then just use the rest of the text
-                        // 4. Rinse and repeat
+                    //So, I think it goes like this....
+                    // 1. Find the first string you are looking for
+                    // 2. Check whether it is part of a div already (<div> will be just before)
+                    // 3. Find the next string. If it exists, backtrack to before the prior <div>
+                    //    If not, then just use the rest of the text
+                    // 4. Rinse and repeat
 
-                        var startPoint = value.indexOf(strB);
+                    var startPoint = value.indexOf(strB);
 
-                        if (startPoint < 0) {
-                            return '';
+                    if (startPoint < 0) {
+                        return '';
+                    }
+
+                    var gotDiv = false; //Are we in a <div>
+                    var midDiv = false; //Have we got a <div> between string and value
+
+                    if (startPoint > 4) //Might be a <div> in front
+                    {
+                        if (value.slice( startPoint - 5, startPoint) === '<div>') {
+                            gotDiv = true;
+                            startPoint -= 5;    //Move back to before the <div>
                         }
 
-                        var gotDiv = false; //Are we in a <div>
-                        var midDiv = false; //Have we got a <div> between string and value
-
-                        if (startPoint > 4) //Might be a <div> in front
-                        {
-                            if (value.slice( startPoint - 5, startPoint) === '<div>') {
-                                gotDiv = true;
-                                startPoint -= 5;    //Move back to before the <div>
-                            }
-
-                            if (value.slice(startPoint + strB.length + 5, startPoint + strB.length + 11) === '</div>') {
-                                midDiv = true;
-                            }
+                        if (value.slice(startPoint + strB.length + 5, startPoint + strB.length + 11) === '</div>') {
+                            midDiv = true;
                         }
+                    }
 
-                        // Look for end
-                        var endPoint = value.indexOf(strE);
-                        if ( endPoint > 0 ) {
-                            if (value.slice( endPoint - 5, endPoint) === '<div>') {
-                                endPoint -= 5;
-                            }
+                    // Look for end
+                    var endPoint = value.indexOf(strE);
+                    if ( endPoint > 0 ) {
+                        if (value.slice( endPoint - 5, endPoint) === '<div>') {
+                            endPoint -= 5;
+                        }
+                    }
+                    else {
+                        endPoint = value.length;
+                    }
+
+                    var finalString = value.slice( startPoint, endPoint);
+
+                    //Remove the separator div from end
+                    var uselessDiv = '<div><br /></div>';
+                    while (finalString.slice( finalString.length - uselessDiv.length, finalString.length) == uselessDiv) {
+                        finalString = finalString.slice(0, finalString.length - uselessDiv.length);
+                    }
+
+                    if (gotDiv) {
+                        if (midDiv) {
+                            finalString = finalString.slice( strB.length + 11, finalString.length); //Remove <div></div>
                         }
                         else {
-                            endPoint = value.length;
+                            finalString = finalString.slice( strB.length + 5, finalString.length - 6);
                         }
 
-                        var finalString = value.slice( startPoint, endPoint);
-
-                        //Remove the separator div from end
-                        var uselessDiv = '<div><br /></div>';
-                        while (finalString.slice( finalString.length - uselessDiv.length, finalString.length) == uselessDiv) {
-                            finalString = finalString.slice(0, finalString.length - uselessDiv.length);
-                        }
-
-                        if (gotDiv) {
-                            if (midDiv) {
-                                finalString = finalString.slice( strB.length + 11, finalString.length); //Remove <div></div>
-                            }
-                            else {
-                                finalString = finalString.slice( strB.length + 5, finalString.length - 6);
-                            }
-
-                        }
-                        else finalString = finalString.slice( strB.length, finalString.length);
-
-                        //Remove the separator div from start
-                        while (finalString.slice( 0, uselessDiv.length) == uselessDiv) {
-                            finalString = finalString.slice(uselessDiv.length, finalString.length);
-                        }
-
-                        return finalString;
                     }
+                    else finalString = finalString.slice( strB.length, finalString.length);
+
+                    //Remove the separator div from start
+                    while (finalString.slice( 0, uselessDiv.length) == uselessDiv) {
+                        finalString = finalString.slice(uselessDiv.length, finalString.length);
+                    }
+
+                    return finalString;
+                }
             };
         return (gridConfig);
     },
@@ -187,7 +215,7 @@ Ext.define('CustomApp', {
             models: [ modelType ],
             filters: filters,
             autoLoad: true,
-            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes' ],
+            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryPlanEstimate', 'LastUpdateDate', 'Description' ],
             listeners: {
                 load: function (store, data, success) {
                     this.store = store;
@@ -195,6 +223,40 @@ Ext.define('CustomApp', {
                 },
                 scope: app
             }
+        });
+
+        app.exporter = Ext.create('GridExporter');
+
+        var rallybutton = this.down('rallybutton');
+        if ( rallybutton ) {
+            rallybutton.destroy();
+        }
+
+        app.add ({
+            id : 'exportButton',
+            margin: '5 5 5 5',
+            xtype: 'rallybutton',
+            text : 'Export',
+            handler : function() {
+                var saveDialog = Ext.create('Rally.ui.dialog.Dialog', {
+                    autoShow: true,
+                    draggable: true,
+                    width: 300,
+                    title: 'Export all records',
+                    items: [
+                        {
+                            xtype: 'rallybutton',
+                            text: 'CSV',
+                            handler: function () {
+                                app.exporter.exportCSV(app.grid);
+                                saveDialog.destroy();
+                            }
+                        }
+                    ]
+
+                 });
+            }
+
         });
     }
 });
@@ -244,4 +306,88 @@ Ext.define('resetBulkField', {
 
         }
     }
+});
+
+Ext.define ('AppRichTextEditor', {
+//    extend: Rally.ui.richtext.RichTextEditor,
+        extend:  Ext.Component ,
+        alias: 'widget.apprichtexteditor',
+
+    config: {
+        hideMode: 'offsets',
+        listeners: {
+//            blur: function(arg1, arg2, arg3, arg4, arg5) {
+//                debugger;
+//                this.hide();
+//                return true;
+//            },
+//            beforedestroy: function(arg1, arg2, arg3, arg4) {
+//                debugger;
+//                return true;
+//            },
+//            beforestartedit: function(arg1, arg2, arg3, arg4) {
+//                debugger;
+//                return false;
+//            }
+        }
+    },
+
+    constructor: function(config, arg2, arg3, arg4) {
+        this.mergeConfig(config);
+        this.callParent([this.config]);
+//        debugger;
+    },
+
+    initComponent: function(arg1, arg2, arg3, arg4) {
+        this.callParent(arguments);
+        this.addEvents( 'beforestartedit');
+//        this.getRawValue = this._getRawValue;
+//        this.setSize = this._setSize;
+//        if (!this.getToolbarAlwaysEnabled()) {
+//            this.on('focus', this._enableToolbar, this);
+//            this.on('blur', this._disableToolbar, this);
+//        }
+//
+//        this.mixins.field.initField.call(this);
+//
+//        debugger;
+    },
+//
+//    _getRawValue: function () {
+//        return this.initialValue;
+//    },
+//
+//    _setSize: function( width, height) {
+//        return true;
+//    },
+
+
+    startEdit: function(el, value, context) {
+        var me = this;
+        var field = me.field;
+
+//debugger;
+
+        me.completeEdit();
+        me.boundEl = Ext.get(el);
+        value = Ext.isDefined(value) ? value : Ext.String.trim(me.boundEl.dom.innerText || me.boundEl.dom.innerHTML);
+
+        if (!me.rendered) {
+            if (me.ownerCt) {
+                me.parentEl = me.ownerCt.el;
+                me.parentEl.position();
+            }
+            me.render(me.parentEl || document.doby);
+        }
+
+        if (me.fireEvent('beforestartedit', me, me.boundEl, value) !== false) {
+            me. startValue = value;
+            me.show();
+            me.editing = true;
+        }
+    }
+//
+//    calculate: function (ownerContext) {
+//    }
+
 });
