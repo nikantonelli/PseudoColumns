@@ -60,11 +60,12 @@ Ext.define("GridExporter", {
             text = Ext.Date.format(fieldData, this.dateFormat);
 
         } else if (typeof fieldData === 'string' ){ //Remove any html formatting coding.
-            //Remove all the tags  for now
-            text = fieldData.replace(/<[^>]*>/g," ");
-            text = text.replace(/&nbsp\;/g," ");
 
-        } /*else if (!fieldData.match) { // not a string or object we recognize...bank it out
+            text = fieldData.replace(/<[^>]*>/g," "); //Remove all the tags  for now
+            text = text.replace(/\’/g,"'");              //Remove the MAC back-quote
+            text = text.replace(/&nbsp\;/g," ");        //Remove the &nbsp chars
+
+        } /*else if (!fieldData.match) { // not a string or object we recognise...blank it out
             text = '';
         } */ else {
             text = fieldData;
