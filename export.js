@@ -65,9 +65,13 @@ Ext.define("GridExporter", {
             text = text.replace(/\’/g,"'");              //Remove the MAC back-quote
             text = text.replace(/&nbsp\;/g," ");        //Remove the &nbsp chars
 
-        } /*else if (!fieldData.match) { // not a string or object we recognise...blank it out
+        } else if (fieldData._type == 'Milestone') {
             text = '';
-        } */ else {
+            _.each(fieldData._tagsNameArray, function(value) {
+                if (text.length !== 0) { text += ' / '; }
+                text += value.Name;
+            });
+        } else {
             text = fieldData;
         }
 

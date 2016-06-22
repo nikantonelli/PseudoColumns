@@ -3,7 +3,7 @@
 <head>
     <title>PseudoColumns</title>
 
-    <script type="text/javascript" src="/apps/2.0/sdk-debug.js"></script>
+    <script type="text/javascript" src="/apps/2.1/sdk-debug.js"></script>
 
     <script type="text/javascript">
         Rally.onReady(function () {
@@ -37,6 +37,8 @@
         var app = this;
         this.add( {
             xtype: 'rallyportfolioitemtypecombobox',
+            stateful: true,
+            stateId: this.getStateId(),
             id: 'piType',
             listeners: {
                 ready: function() { app._onLoad(app, this.rawValue); },
@@ -64,8 +66,10 @@
     _getGridConfig: function( field ) {
         var gridConfig = {
                 xtype: 'rallygrid',
+//                width: 2560,
                 store: this.store,
                 enableBulkEdit: true,
+//                readOnly: true,
                 enableColumnResize: true,
                 bulkEditConfig: {
                     showEdit: false,
@@ -78,19 +82,26 @@
 
                 plugins: [
                         Ext.create('Ext.grid.plugin.CellEditing', {
-                            clicksToEdit: 1
+                            clicksToEdit: 2
                         })
                 ],
 
                 columnCfgs:  [
 
-                         'FormattedID' ,
-                         { text: 'Name', dataIndex: 'Name' },
-                          'Description',
-                         { text: 'Owner', dataIndex: 'Owner'},
-                          'PercentDoneByStoryPlanEstimate',
+                         { text: 'ID', dataIndex: 'FormattedID', width: 75 } ,
+                         'Name' ,
+                         'Description',
+                         { text: 'Owner', dataIndex: 'Owner', width: 75 } ,
+                          'Project',
+                         { text: '% Done', dataIndex: 'PercentDoneByStoryPlanEstimate', width: 100},
+                         { text: 'Accepted Stories', dataIndex: 'AcceptedLeafStoryCount' , width: 75, align: 'center' },
+                         { text: 'Total Story Count', dataIndex:'LeafStoryCount' , width: 75, align: 'center'},
+                         { text: 'Accepted Story Estimates', dataIndex: 'AcceptedLeafStoryPlanEstimateTotal', width: 75, align: 'center'},
+                         { text: 'Total Story Estimate', dataIndex: 'LeafStoryPlanEstimateTotal', width: 75, align: 'center'},
+
+                         { text: 'Milestones', dataIndex: 'Milestones', readOnly: true },
                           'LastUpdateDate'
-                    ]
+                        ]
                     .concat(
                         _.map(
                             Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
@@ -224,7 +235,11 @@
             models: [ modelType ],
             filters: filters,
             autoLoad: true,
-            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryPlanEstimate', 'LastUpdateDate', 'Description' ],
+            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryCount', 'PercentDoneByStoryPlanEstimate',
+                'AcceptedLeafStoryCount', 'LeafStoryCount', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal',
+                'LastUpdateDate', 'Description', 'Project', 'PlannedStartDate', 'PlannedEndDate', 'ActualStartDate', 'ActualEndDate',
+                'Milestones' ],
+            hydrate: ['Milestones'],
             listeners: {
                 load: function (store, data, success) {
                     this.store = store;
@@ -628,11 +643,18 @@ Ext.define ('AppRichTextEditor', {
             text = Ext.Date.format(fieldData, this.dateFormat);
 
         } else if (typeof fieldData === 'string' ){ //Remove any html formatting coding.
-            text = fieldData.replace(/<.*>/g," ");
-            text = text.replace(/&nbsp;/g," ");
-        } /*else if (!fieldData.match) { // not a string or object we recognize...bank it out
+
+            text = fieldData.replace(/<[^>]*>/g," "); //Remove all the tags  for now
+            text = text.replace(/\’/g,"'");              //Remove the MAC back-quote
+            text = text.replace(/&nbsp\;/g," ");        //Remove the &nbsp chars
+
+        } else if (fieldData._type == 'Milestone') {
             text = '';
-        } */ else {
+            _.each(fieldData._tagsNameArray, function(value) {
+                if (text.length !== 0) { text += ' / '; }
+                text += value.Name;
+            });
+        } else {
             text = fieldData;
         }
 

@@ -28,6 +28,8 @@ Ext.define('CustomApp', {
         var app = this;
         this.add( {
             xtype: 'rallyportfolioitemtypecombobox',
+            stateful: true,
+            stateId: this.getStateId(),
             id: 'piType',
             listeners: {
                 ready: function() { app._onLoad(app, this.rawValue); },
@@ -55,8 +57,10 @@ Ext.define('CustomApp', {
     _getGridConfig: function( field ) {
         var gridConfig = {
                 xtype: 'rallygrid',
+//                width: 2560,
                 store: this.store,
                 enableBulkEdit: true,
+//                readOnly: true,
                 enableColumnResize: true,
                 bulkEditConfig: {
                     showEdit: false,
@@ -69,19 +73,26 @@ Ext.define('CustomApp', {
 
                 plugins: [
                         Ext.create('Ext.grid.plugin.CellEditing', {
-                            clicksToEdit: 1
+                            clicksToEdit: 2
                         })
                 ],
 
                 columnCfgs:  [
 
-                         'FormattedID' ,
-                         { text: 'Name', dataIndex: 'Name' },
-                          'Description',
-                         { text: 'Owner', dataIndex: 'Owner'},
-                          'PercentDoneByStoryPlanEstimate',
+                         { text: 'ID', dataIndex: 'FormattedID', width: 75 } ,
+                         'Name' ,
+                         'Description',
+                         { text: 'Owner', dataIndex: 'Owner', width: 75 } ,
+                          'Project',
+                         { text: '% Done', dataIndex: 'PercentDoneByStoryPlanEstimate', width: 100},
+                         { text: 'Accepted Stories', dataIndex: 'AcceptedLeafStoryCount' , width: 75, align: 'center' },
+                         { text: 'Total Story Count', dataIndex:'LeafStoryCount' , width: 75, align: 'center'},
+                         { text: 'Accepted Story Estimates', dataIndex: 'AcceptedLeafStoryPlanEstimateTotal', width: 75, align: 'center'},
+                         { text: 'Total Story Estimate', dataIndex: 'LeafStoryPlanEstimateTotal', width: 75, align: 'center'},
+
+                         { text: 'Milestones', dataIndex: 'Milestones', readOnly: true },
                           'LastUpdateDate'
-                    ]
+                        ]
                     .concat(
                         _.map(
                             Ext.JSON.decode(this.getSetting('colStrings')), function (colstring) {
@@ -215,7 +226,11 @@ Ext.define('CustomApp', {
             models: [ modelType ],
             filters: filters,
             autoLoad: true,
-            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryPlanEstimate', 'LastUpdateDate', 'Description' ],
+            fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryCount', 'PercentDoneByStoryPlanEstimate',
+                'AcceptedLeafStoryCount', 'LeafStoryCount', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal',
+                'LastUpdateDate', 'Description', 'Project', 'PlannedStartDate', 'PlannedEndDate', 'ActualStartDate', 'ActualEndDate',
+                'Milestones' ],
+            hydrate: ['Milestones'],
             listeners: {
                 load: function (store, data, success) {
                     this.store = store;
