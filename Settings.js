@@ -15,8 +15,10 @@ Ext.define('Settings', {
     var blackListedFields = [ 'DisplayColor', 'Name', 'DragAndDropRank', 'InvestmentCategory' ];
 
         //This can be called before we really need it
-        if ( ! Ext.getCmp('piType'))
-            return [];
+
+//Fix in React dashboard handling makes this redundant
+//        if ( ! Ext.getCmp('piType'))
+//            return [];
 
         return [
         {
