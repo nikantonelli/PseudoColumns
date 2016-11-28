@@ -84,6 +84,7 @@ Ext.define('CustomApp', {
                          'Description',
                          { text: 'Owner', dataIndex: 'Owner', width: 75 } ,
                           'Project',
+                         { text: 'Business Outcome', dataIndex: 'Parent' },
                          { text: '% Done', dataIndex: 'PercentDoneByStoryPlanEstimate', width: 100},
                          { text: 'Accepted Stories', dataIndex: 'AcceptedLeafStoryCount' , width: 75, align: 'center' },
                          { text: 'Total Story Count', dataIndex:'LeafStoryCount' , width: 75, align: 'center'},
@@ -228,7 +229,7 @@ Ext.define('CustomApp', {
             autoLoad: true,
             fetch: [ 'FormattedID', 'Name', 'Owner', 'Notes', 'PercentDoneByStoryCount', 'PercentDoneByStoryPlanEstimate',
                 'AcceptedLeafStoryCount', 'LeafStoryCount', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal',
-                'LastUpdateDate', 'Description', 'Project', 'PlannedStartDate', 'PlannedEndDate', 'ActualStartDate', 'ActualEndDate',
+                'LastUpdateDate', 'Description', 'Project', 'Parent', 'PlannedStartDate', 'PlannedEndDate', 'ActualStartDate', 'ActualEndDate',
                 'Milestones' ],
             hydrate: ['Milestones'],
             listeners: {
